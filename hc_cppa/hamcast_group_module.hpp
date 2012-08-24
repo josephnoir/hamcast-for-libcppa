@@ -1,3 +1,4 @@
+#include <map>
 #include <thread>
 
 #include "cppa/cppa.hpp"
@@ -14,43 +15,29 @@
 
 namespace cppa {
 
-using namespace cppa;
+class hamcast_group;
 
-typedef std::lock_guard<util::shared_spinlock> exclusive_guard;
-typedef util::shared_lock_guard<util::shared_spinlock> shared_guard;
-typedef util::upgrade_lock_guard<util::shared_spinlock> upgrade_guard;
+class hamcast_group_module : public group::module {
 
-class hamcast_group_module;
-
-class hamcast_group : public group {
-
- private:
-    void revc_loop();
-
- protected:
-
-    process_information_ptr m_process;
-    util::shared_spinlock m_shared_mtx;
-    std::set<channel_ptr> m_subscribers;
-    hamcast::multicast_socket m_sck;
-    std::thread m_recv_thread;
+    typedef group::module super;
 
  public:
 
-    hamcast_group(hamcast_group_module* mod, std::string id,
-                  process_information_ptr parent = process_information::get());
+    hamcast_group_module();
+    group_ptr get(const std::string& identifier);
+    intrusive_ptr<group> deserialize(deserializer* source);
+    void serialize(hamcast_group* what, serializer* sink);
 
-    void send_all_subscribers(actor* sender, const any_tuple& msg);
-    void enqueue(actor* sender, any_tuple msg);
+ private:
 
-    std::pair<bool, size_t> add_subscriber(const channel_ptr& who);
-    std::pair<bool, size_t> erase_subscriber(const channel_ptr& who);
-    group::subscription subscribe(const channel_ptr& who);
-    void unsubscribe(const channel_ptr& who);
+    typedef std::map<std::string, group_ptr> hamcast_group_map;
 
-    void serialize(serializer* sink);
-    inline const process_information& process() const;
-    inline const process_information_ptr& process_ptr() const;
+    const uniform_type_info* m_actor_utype;
+    util::shared_spinlock m_instance_mtx;
+    hamcast_group_map m_instances;
+    util::shared_spinlock m_proxies_mtx;
+    std::map<process_information, hamcast_group_map> m_proxies;
+
 };
 
 } // namespace cppa
