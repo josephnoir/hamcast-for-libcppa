@@ -5,6 +5,7 @@
 
 #include "cppa/cppa.hpp"
 #include "cppa/group.hpp"
+#include "cppa/object.hpp"
 #include "cppa/any_tuple.hpp"
 #include "cppa/serializer.hpp"
 #include "cppa/deserializer.hpp"
@@ -38,27 +39,21 @@ class hamcast_group : public group {
  private:
 
     void recv_loop() {
-        const size_t ptr_size = sizeof(actor*);
+        auto& arr = detail::static_types_array<actor_ptr, any_tuple>::arr;
         for(;;) {
             hamcast::multicast_packet mcp = m_sck.receive();
-    //            hamcast::multicast_packet mcp(move(m_sck.receive()));
-            actor* src;
-            {
-                cppa::binary_deserializer bd(reinterpret_cast<const char*>(mcp.data()), ptr_size);
-                object tmp;
-                bd >> tmp;
-    //                src = get<actor*>(tmp);
-                uniform_typeid<actor_ptr>()->deserialize(&src, &bd);
-            }
+            cppa::binary_deserializer bd(reinterpret_cast<const char*>(mcp.data()), mcp.size());
+            actor_ptr src;
+            arr[0]->deserialize(&src, &bd);
             any_tuple msg;
-            {
-                cppa::binary_deserializer bd(reinterpret_cast<const char*>(mcp.data())+ptr_size, mcp.size()-ptr_size);
-    //            object tmp;
-    //            bd >> tmp;
-    //            msg = get<any_tuple>(tmp);
-                uniform_typeid<any_tuple>()->deserialize(&msg, &bd);
-            }
-            send_all_subscribers(src, msg);
+            arr[1]->deserialize(&msg, &bd);
+            //object src_obj;
+            //bd >> src_obj;
+            //auto src = ::cppa::get<actor_ptr>(src_obj);
+            //object msg_obj;
+            //bd >> msg_obj;
+            //auto msg = ::cppa::get<any_tuple>(msg_obj);
+            send_all_subscribers(src.get(), msg);
         }
     }
 
@@ -97,12 +92,13 @@ class hamcast_group : public group {
 
     void enqueue(actor* sender, any_tuple msg) {
         //serialize
+        actor_ptr ptr = sender;
         util::buffer wr_buf;
-        {
-            binary_serializer bs(&wr_buf);
-            bs << sender;  // is this right?
-            bs << msg;
-        }
+        binary_serializer bs(&wr_buf);
+        bs << ptr;
+        bs << msg;
+        // skip first 4 bytes, because binary_serializer stores the size
+        // of the remaining buffer
         m_sck.send(m_identifier, wr_buf.size(), wr_buf.data());
     }
 
