@@ -1,2 +1,3 @@
 hc_cppa/hamcast_group_module.hpp
 src/hamcast_group_module.cpp
+examples/group_chat.cpp

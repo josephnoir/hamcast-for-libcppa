@@ -14,24 +14,15 @@
 using namespace cppa;
 using namespace std;
 
-/**
- *  todo:
- * server gruppen spiechern user (+monitor)
- */
 
-template<typename T, typename... Args>
-unique_ptr<T> make_unique(Args&&... args) {
-    return unique_ptr<T>(new T(std::forward<Args>(args)...));
-}
-
-void hamcast_request(const string& groupname) {
-    cout << "[LOG] Someone requested group information for: '"+groupname+"'.";
-    group_ptr group = group::get("hamcast", groupname);
-    self->join(group);
-    //auto group = group::get("local", groupname);
-    //join(group);
-    reply(atom("answer"), groupname, group);
-}
+//void hamcast_request(const string& groupname) {
+//    cout << "[LOG] Someone requested group information for: '"+groupname+"'.";
+//    group_ptr group = group::get("hamcast", groupname);
+//    self->join(group);
+//    //auto group = group::get("local", groupname);
+//    //join(group);
+//    reply(atom("answer"), groupname, group);
+//}
 
 class server : public event_based_actor {
 
@@ -57,8 +48,6 @@ class server : public event_based_actor {
                 join(group);
                 reply(atom("answer"), groupname, group);
             },
-            on(atom("request"), atom("hamcast"), arg_match) >> hamcast_request,
-            /*
             on(atom("request"), atom("hamcast"), arg_match) >> [=](const string& groupname) {
                 send(m_printer, "[LOG] Someone requested group information for: '"+groupname+"'.");
                 auto group = group::get("hamcast", groupname);
@@ -67,7 +56,7 @@ class server : public event_based_actor {
                 //join(group);
                 reply(atom("answer"), groupname, group);
 
-            },*/
+            },
             on(atom("join"), arg_match) >> [=](const string& username){
                 m_users[last_sender()] = username;
                 monitor(last_sender());
@@ -139,20 +128,13 @@ class client : public event_based_actor {
             },
             on(atom("broadcast"), arg_match) >> [=](const string& message) {
                 for(auto& dest : m_joined) {
-                    // send(m_printer, "sending '"+message+"' to '"+dest.first+"'.");
                     send(dest.second, atom("in"), m_username+": "+message);
                 }
             },
-            // on(atom("create"), arg_match) >> [=](const string& groupname) {
-            //     send(m_server, atom("create"), groupname);
-            // },
             on(atom("join"), atom("local"), arg_match) >> [=](const string& groupname) {
-                //send(m_printer, to_string(last_dequeued()));
                 send(m_server, atom("request"), atom("local"), groupname);
             },
             on(atom("join"), atom("hamcast"), arg_match) >> [=](const string& groupname) {
-                //send(m_printer, to_string(last_dequeued()));
-                //send(m_printer, "received join for hamcast group: "+groupname);
                 send(m_server, atom("request"), atom("hamcast"), groupname);
             },
             on(atom("quit")) >> [=]() {
@@ -279,7 +261,7 @@ auto main(int argc, char* argv[]) -> int {
         }
     }
 
-    group::add_module(make_unique<hamcast_group_module>());
+    group::add_module(make_hamcast_group_module());
 
     if(is_server) { // server 
         send(printer, "Starting chat server ... ");
@@ -383,13 +365,10 @@ auto main(int argc, char* argv[]) -> int {
                     vector<string> values = split(input, ' ');
 
                     match (values) (
-                        on("send", val<string>, val<string>, any_vals) >> [&](const string& groupname, const string& message) {
-                            input.erase(0,6+groupname.size());
-                            send(client_actor, atom("send"), groupname, input);
-                        },
-                        // on("create", val<string>) >> [&](const string& groupname) {
-                        //     send(client_actor, atom("create"), groupname);
-                        // },
+//                        on("send", val<string>, val<string>, any_vals) >> [&](const string& groupname, const string& message) {
+//                            input.erase(0,6+groupname.size());
+//                            send(client_actor, atom("send"), groupname, input);
+//                        },
                         on("join", val<string>) >> [&](const string& groupname) {
                             send(client_actor, atom("join"), atom("local"), groupname);
                         },

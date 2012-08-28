@@ -17,7 +17,7 @@ To use hamcast-for-libcppa you need libcppa, hamcast and boost.
 Compiler
 --------
 
-I recommand using gcc 4.7. Meaning you need to compile boost, libcppa and hamcast with gcc4.7 too.
+I recommand using gcc 4.7. Meaning you need to compile boost, libcppa and hamcast with gcc 4.7 too.
 
 
 Get the source:
@@ -45,13 +45,7 @@ Usage
 
 Besides adding the header you need to use the
 
-    group::add_module(make_unique<hamcast_group_module>());
+    group::add_module(group::add_module(make_hamcast_group_module());
 
-method provided by libcppa. Its argument is a unique\_ptr. Here is a mothod to create it:
-
-    template<typename T, typename... Args>
-    unique_ptr<T> make_unique(Args&&... args) {
-        return unique_ptr<T>(new T(std::forward<Args>(args)...));
-    }
-
+method provided by libcppa.
 

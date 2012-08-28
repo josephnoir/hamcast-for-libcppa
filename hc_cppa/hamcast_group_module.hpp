@@ -40,4 +40,6 @@ class hamcast_group_module : public group::module {
 
 };
 
+std::unique_ptr<group::module> make_hamcast_group_module();
+
 } // namespace cppa
