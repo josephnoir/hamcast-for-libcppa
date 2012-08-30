@@ -86,24 +86,22 @@ class server : public event_based_actor {
 
 class client : public event_based_actor {
 
-    struct joined_group {
-        string m_groupname;
-        group_ptr m_group;
-        bool m_leave_on_server_disco;
+//    struct joined_group {
+//        string m_groupname;
+//        group_ptr m_group;
+//        bool m_leave_on_server_disco;
+//        joined_group(string groupname, group_ptr group, bool leave_on_server_disco) : m_groupname(groupname), m_group(group), m_leave_on_server_disco(leave_on_server_disco) { }
+//        const string& get_greoupname() { return m_group; }
+//        const group_ptr& get_group() { return m_group; }
+//        bool leave_on_server_disconnect() { return m_leave_on_server_disco; }
+//    };
 
-        joined_group(string groupname, group_ptr group, bool leave_on_server_disco) : m_groupname(groupname), m_group(group), m_leave_on_server_disco(leave_on_server_disco) { }
-        const string& get_greoupname() { return m_group; }
-        const group_ptr& get_group() { return m_group; }
-        bool leave_on_server_disconnect() { return m_leave_on_server_disco; }
-    };
-
-//    typedef set<pair<string, group_ptr> > group_set;
-    set<joined_group> m_joined;
+    typedef set<pair<string, group_ptr> > group_set;
 
     string    m_username;
     actor_ptr m_server;
     actor_ptr m_printer;
-//    group_set m_joined;
+    group_set m_joined;
     bool connected;
 
     void init() {
