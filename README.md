@@ -1,7 +1,7 @@
 hamcast-for-libcppa
 ===================
 
-Libcppa is a C++11 actor model implementation. This module enables the actors to communicate via multicast using hamcast, which is a scalable multicast implementation.
+Libcppa is a C++11 actor model implementation. This module enables the actors to communicate via multicast using hamcast, which offers scalable multicast.
 
 
 Dependencies
@@ -43,7 +43,7 @@ Tested on OSX, but should work on Linux too.
 Usage
 -----
 
-Besides including the header you need to add the hamcast group module to libcppa:
+Besides including the header you need to add the hamcast group module using:
 
     group::add_module(make_hamcast_group_module());
 

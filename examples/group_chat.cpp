@@ -30,7 +30,7 @@ class server : public event_based_actor {
             },
             on(atom("info")) >> [=]() {
                     stringstream  strstr;
-                    strstr << "\nConnected users:\n";
+                    strstr << "Port: \n > " << m_port << "\nConnected users:\n";
                     for(auto& user : m_users) {
                         strstr << " > " << user.second << "\n";
                     }
@@ -86,12 +86,24 @@ class server : public event_based_actor {
 
 class client : public event_based_actor {
 
-    typedef set<pair<string, group_ptr> > group_set;
+    struct joined_group {
+        string m_groupname;
+        group_ptr m_group;
+        bool m_leave_on_server_disco;
+
+        joined_group(string groupname, group_ptr group, bool leave_on_server_disco) : m_groupname(groupname), m_group(group), m_leave_on_server_disco(leave_on_server_disco) { }
+        const string& get_greoupname() { return m_group; }
+        const group_ptr& get_group() { return m_group; }
+        bool leave_on_server_disconnect() { return m_leave_on_server_disco; }
+    };
+
+//    typedef set<pair<string, group_ptr> > group_set;
+    set<joined_group> m_joined;
 
     string    m_username;
     actor_ptr m_server;
     actor_ptr m_printer;
-    group_set m_joined;
+//    group_set m_joined;
     bool connected;
 
     void init() {
@@ -143,6 +155,7 @@ class client : public event_based_actor {
                         monitor(new_server);
                         connected = true;
                         send(m_printer, "Connection established.");
+                        send(m_server, atom("join"), m_username);
                     }
                     catch (network_error exc) {
                         send(m_printer, string("[!!!] Could not connect: ") + exc.what());
@@ -155,7 +168,6 @@ class client : public event_based_actor {
                 send(m_printer, "Joining group: '"+groupname+"'.");
                 join(group);
                 m_joined.insert(make_pair(groupname, group));
-                send(last_sender(), atom("join"), m_username);
                 send(group, atom("in"), m_username+" joined "+groupname+".");
 
             },
@@ -163,7 +175,6 @@ class client : public event_based_actor {
                 send(m_printer, "Joining group: '"+groupname+"'.");
                 join(group);
                 m_joined.insert(make_pair(groupname, group));
-                send(last_sender(), atom("join"), m_username);
                 send(group, atom("in"), m_username+" joined "+groupname+".");
 
             },
@@ -171,7 +182,6 @@ class client : public event_based_actor {
                 send(m_printer, "Joining group: '"+groupname+"'.");
                 join(group);
                 m_joined.insert(make_pair(groupname, group));
-                send(last_sender(), atom("join"), m_username);
                 send(group, atom("in"), m_username+" joined "+groupname+".");
 
             },
@@ -373,7 +383,7 @@ auto main(int argc, char* argv[]) -> int {
                         done = true;
                     },
                     others() >> [&] {
-                        send(printer, "available commands:\n /quit\n");
+                        send(printer, "available commands:\n /info\n /quit\n");
                     }
                 );
             }
@@ -407,7 +417,7 @@ auto main(int argc, char* argv[]) -> int {
             send(printer, strstr.str());
             send(client_actor, atom("connect"), host, port);
         }
-        auto get_comamnd = [&](){
+        auto get_command = [&](){
             string input;
             bool done = false;
             getline(cin, input);
@@ -448,9 +458,9 @@ auto main(int argc, char* argv[]) -> int {
             }
             return !done;
         };
-        auto running = get_comamnd();
+        auto running = get_command();
         while(running) {
-            running = get_comamnd();
+            running = get_command();
         }
         send(client_actor, atom("quit"));
     } // client
