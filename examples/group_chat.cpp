@@ -245,7 +245,7 @@ void print_usage(actor_ptr printer) {
 }
 
 std::function<option<string> (const string&)> get_extractor(const string& identifier) {
-    auto tmp = [&](const string& kvp) -> option<string> {
+    return [=](const string& kvp) -> option<string> {
         auto vec = split(kvp, '=');
         if (vec.size() == 2) {
             if (vec.front() == "--"+identifier) {
@@ -254,7 +254,6 @@ std::function<option<string> (const string&)> get_extractor(const string& identi
         }
         return {};
     };
-    return tmp;
 }
 
 
@@ -456,10 +455,11 @@ auto main(int argc, char* argv[]) -> int {
             }
             return !done;
         };
-        auto running = get_command();
-        while(running) {
+        bool running;
+        do {
             running = get_command();
         }
+        while (running);
         send(client_actor, atom("quit"));
     } // client
 
