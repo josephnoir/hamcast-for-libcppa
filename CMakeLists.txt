@@ -90,7 +90,7 @@ find_package(Boost COMPONENTS thread system  REQUIRED)
 link_directories(${Boost_LIBRARY_DIRS})
 
 # find cppa
-find_package(Libcppa REQUIRED)
+find_package(LibCPPA REQUIRED)
 
 # find hamcast
 find_package(LibHamcast REQUIRED)

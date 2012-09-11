@@ -19,9 +19,18 @@ else (HAMCAST_LIBRARY AND HAMCAST_INCLUDE)
       /opt/local/include
       /sw/include
       ${HAMCAST_INCLUDE_PATH}
+      ${HAMCAST_INCLUDE_PATH}
       ${HAMCAST_LIBRARY_PATH}
       ${CMAKE_INCLUDE_PATH}
       ${CMAKE_INSTALL_PREFIX}/include
+      ../libhamcast
+      ../../libhamcast
+      ../../../libhamcast
+      ../../../../libhamcast
+      ../hamcast/libhamcast
+      ../../hamcast/libhamcast
+      ../../../hamcast/libhamcast
+      ../../../../hamcast/libhamcast
   )
   
   if (HC_INCLUDE) 
@@ -40,11 +49,17 @@ else (HAMCAST_LIBRARY AND HAMCAST_INCLUDE)
       /opt/local/lib
       /sw/lib
       ${HAMCAST_INCLUDE_PATH}
-      ${HAMCAST_INCLUDE_PATH}/.libs
       ${HAMCAST_LIBRARY_PATH}
-      ${HAMCAST_LIBRARY_PATH}/.libs
       ${CMAKE_LIBRARY_PATH}
       ${CMAKE_INSTALL_PREFIX}/lib
+      ../libhamcast/build
+      ../../libhamcast/build
+      ../../../libhamcast/build
+      ../../../../libhamcast/build
+      ../hamcast/libhamcast/build
+      ../../hamcast/libhamcast/build
+      ../../../hamcast/libhamcast/build
+      ../../../../hamcast/libhamcast/build
   )
 
   if (HC_LIBRARY) 
