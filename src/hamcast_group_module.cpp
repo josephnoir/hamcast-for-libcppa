@@ -2,6 +2,7 @@
 #include <set>
 #include <thread>
 #include <stdexcept>
+#include <iostream>
 
 #include "cppa/cppa.hpp"
 #include "cppa/group.hpp"
@@ -12,11 +13,16 @@
 #include "cppa/binary_serializer.hpp"
 #include "cppa/binary_deserializer.hpp"
 
+#include "cppa/detail/logging.hpp"
+
+#include "cppa/network/middleman.hpp"
+
 #include "cppa/util/shared_spinlock.hpp"
 #include "cppa/util/shared_lock_guard.hpp"
 #include "cppa/util/upgrade_lock_guard.hpp"
 
-#include "cppa/network/default_actor_addressing.hpp"
+#include "cppa/detail/singleton_manager.hpp"
+
 
 #include "hamcast/hamcast.hpp"
 
@@ -38,38 +44,12 @@ class hamcast_group : public group {
 
     friend void run_recv_loop(hamcast_group*);
 
- private:
-
-    void recv_loop() {
-        auto& arr = detail::static_types_array<actor_ptr, any_tuple>::arr;
-        for(;;) {
-            hamcast::multicast_packet mcp = m_sck.receive();
-            cppa::binary_deserializer bd(reinterpret_cast<const char*>(mcp.data()), mcp.size(), &m_addressing);
-            actor_ptr src;
-            any_tuple msg;
-            { // lifetime scope of guard
-                exclusive_guard guard(m_addressing_mtx);
-                arr[0]->deserialize(&src, &bd);
-                arr[1]->deserialize(&msg, &bd);
-            }
-            send_all_subscribers(src.get(), msg);
-        }
-    }
-
- protected:
-
-    process_information_ptr m_process;
-    set<channel_ptr> m_subscribers;
-    hamcast::multicast_socket m_sck;
-    thread m_recv_thread;
-    network::default_actor_addressing m_addressing;
-
-    util::shared_spinlock m_subscribers_mtx;
-    util::shared_spinlock m_addressing_mtx;
-
  public:
+
     hamcast_group(hamcast_group_module* mod, string id, process_information_ptr parent = process_information::get())
     : group(mod, move(id)), m_process(move(parent)), m_sck() {
+        m_mm = detail::singleton_manager::get_middleman();
+        m_proto = m_mm->protocol(atom("DEFAULT"));
         m_recv_thread = thread([&](){ recv_loop(); });
         m_sck.join(m_identifier);
     }
@@ -82,18 +62,27 @@ class hamcast_group : public group {
     }
 
     void enqueue(actor* sender, any_tuple msg) {
-        //serialize
+        intrusive_ptr<hamcast_group> gself = this;
+        auto proto = m_proto;
         actor_ptr ptr = sender;
-        util::buffer wr_buf;
-        binary_serializer bs(&wr_buf, &m_addressing);
-        { // lifetime scope of guard
-            exclusive_guard guard(m_addressing_mtx);
-            bs << ptr;
-            bs << msg;
-        }
-        // skip first 4 bytes, because binary_serializer stores the size
-        // of the remaining buffer
-        m_sck.send(m_identifier, wr_buf.size(), wr_buf.data());
+        auto id = m_identifier;
+        m_mm->run_later([=] {
+            util::buffer wr_buf;
+            binary_serializer bs(&wr_buf, proto->addressing());
+            try {
+                bs << ptr;
+                bs << msg;
+                gself->m_sck.send(id, wr_buf.size(), wr_buf.data());
+            }
+            catch (exception& e) {
+                string err = "exception occured during serialization: ";
+                err += detail::demangle(typeid(e));
+                err += ", what(): ";
+                err += e.what();
+                CPPA_LOG_ERROR(err);
+                cerr << err;
+            }
+        });
     }
 
     pair<bool, size_t> add_subscriber(const channel_ptr& who) {
@@ -132,6 +121,50 @@ class hamcast_group : public group {
     inline const process_information_ptr& process_ptr() const {
         return m_process;
     }
+
+ private:
+
+    void recv_loop() {
+        CPPA_LOG_TRACE("");
+        for(;;) {
+            hamcast::multicast_packet mcp = m_sck.receive();
+            intrusive_ptr<hamcast_group> gself = this;
+            auto proto = m_proto;
+            m_mm->run_later([mcp, gself, proto] {
+                auto& arr = detail::static_types_array<actor_ptr, any_tuple>::arr;
+                cppa::binary_deserializer bd((const char*) mcp.data(),
+                                             mcp.size(),
+                                             proto->addressing());
+                actor_ptr src;
+                any_tuple msg;
+                try {
+                    CPPA_LOG_DEBUG("deserialize src");
+                    arr[0]->deserialize(&src, &bd);
+                    CPPA_LOG_DEBUG("deserialize msg");
+                    arr[1]->deserialize(&msg, &bd);
+                }
+                catch (exception& e) {
+                    string err = "exception occured during deserialization: ";
+                    err += detail::demangle(typeid(e));
+                    err += ", what(): ";
+                    err += e.what();
+                    CPPA_LOG_ERROR(err);
+                    cerr << err;
+                }
+                gself->send_all_subscribers(src.get(), msg);
+            });
+        }
+    }
+
+    process_information_ptr m_process;
+    set<channel_ptr> m_subscribers;
+    hamcast::multicast_socket m_sck;
+    thread m_recv_thread;
+
+    util::shared_spinlock m_subscribers_mtx;
+
+    network::middleman* m_mm;
+    network::protocol_ptr m_proto;
 
 };
 
