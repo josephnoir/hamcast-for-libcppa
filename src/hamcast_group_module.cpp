@@ -16,6 +16,8 @@
 #include "cppa/util/shared_lock_guard.hpp"
 #include "cppa/util/upgrade_lock_guard.hpp"
 
+#include "cppa/network/default_actor_addressing.hpp"
+
 #include "hamcast/hamcast.hpp"
 
 #include "hc_cppa/hamcast_group_module.hpp"
@@ -42,11 +44,14 @@ class hamcast_group : public group {
         auto& arr = detail::static_types_array<actor_ptr, any_tuple>::arr;
         for(;;) {
             hamcast::multicast_packet mcp = m_sck.receive();
-            cppa::binary_deserializer bd(reinterpret_cast<const char*>(mcp.data()), mcp.size());
+            cppa::binary_deserializer bd(reinterpret_cast<const char*>(mcp.data()), mcp.size(), &m_addressing);
             actor_ptr src;
-            arr[0]->deserialize(&src, &bd);
             any_tuple msg;
-            arr[1]->deserialize(&msg, &bd);
+            { // lifetime scope of guard
+                exclusive_guard guard(m_addressing_mtx);
+                arr[0]->deserialize(&src, &bd);
+                arr[1]->deserialize(&msg, &bd);
+            }
             send_all_subscribers(src.get(), msg);
         }
     }
@@ -54,10 +59,13 @@ class hamcast_group : public group {
  protected:
 
     process_information_ptr m_process;
-    util::shared_spinlock m_shared_mtx;
     set<channel_ptr> m_subscribers;
     hamcast::multicast_socket m_sck;
     thread m_recv_thread;
+    network::default_actor_addressing m_addressing;
+
+    util::shared_spinlock m_subscribers_mtx;
+    util::shared_spinlock m_addressing_mtx;
 
  public:
     hamcast_group(hamcast_group_module* mod, string id, process_information_ptr parent = process_information::get())
@@ -67,7 +75,7 @@ class hamcast_group : public group {
     }
 
     void send_all_subscribers(actor* sender, const any_tuple& msg) {
-        shared_guard guard(m_shared_mtx);
+        shared_guard guard(m_subscribers_mtx);
         for(auto& s : m_subscribers) {
             s->enqueue(sender, msg);
         }
@@ -77,16 +85,19 @@ class hamcast_group : public group {
         //serialize
         actor_ptr ptr = sender;
         util::buffer wr_buf;
-        binary_serializer bs(&wr_buf);
-        bs << ptr;
-        bs << msg;
+        binary_serializer bs(&wr_buf, &m_addressing);
+        { // lifetime scope of guard
+            exclusive_guard guard(m_addressing_mtx);
+            bs << ptr;
+            bs << msg;
+        }
         // skip first 4 bytes, because binary_serializer stores the size
         // of the remaining buffer
         m_sck.send(m_identifier, wr_buf.size(), wr_buf.data());
     }
 
     pair<bool, size_t> add_subscriber(const channel_ptr& who) {
-        exclusive_guard guard(m_shared_mtx);
+        exclusive_guard guard(m_subscribers_mtx);
         if(m_subscribers.insert(who).second){
             return {true, m_subscribers.size()};
         }
@@ -94,7 +105,7 @@ class hamcast_group : public group {
     }
 
     pair<bool, size_t> erase_subscriber(const channel_ptr& who) {
-        exclusive_guard guard(m_shared_mtx);
+        exclusive_guard guard(m_subscribers_mtx);
         auto erased_one = m_subscribers.erase(who) > 0;
         return {erased_one, m_subscribers.size()};
     }
